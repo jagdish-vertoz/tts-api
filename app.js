@@ -1,11 +1,14 @@
-// app.js - Text-to-Speech API using gTTS (compatible with older Node.js)
 const express = require('express');
+const cors = require('cors'); // Import CORS
 const gTTS = require('gtts');
 const fs = require('fs');
 const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Enable CORS for all requests
+app.use(cors());
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -16,12 +19,12 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
 
-// Simple function to generate a unique ID without using uuid
+// Function to generate a unique filename
 function generateId() {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 }
 
-// API endpoint for text-to-speech conversion
+// API Endpoint: Convert Text to Speech
 app.post('/api/text-to-speech', (req, res) => {
   const { text, language = 'en' } = req.body;
   
@@ -29,27 +32,22 @@ app.post('/api/text-to-speech', (req, res) => {
     return res.status(400).json({ error: 'Text is required' });
   }
   
-  // Generate a unique filename
   const filename = `${generateId()}.mp3`;
   const filePath = path.join(uploadsDir, filename);
   
-  // Create a gTTS instance
   const gtts = new gTTS(text, language);
   
-  // Save to file
-  gtts.save(filePath, (err, result) => {
+  gtts.save(filePath, (err) => {
     if (err) {
       console.error('Error generating speech:', err);
       return res.status(500).json({ error: 'Failed to generate speech' });
     }
     
-    // Return the URL to download the file
-    const fileUrl = `/download/${filename}`;
-    res.json({ success: true, fileUrl });
+    res.json({ success: true, fileUrl: `/download/${filename}` });
   });
 });
 
-// Endpoint to download the generated MP3 file
+// API Endpoint: Download Generated MP3 File
 app.get('/download/:filename', (req, res) => {
   const filePath = path.join(uploadsDir, req.params.filename);
   
@@ -60,66 +58,29 @@ app.get('/download/:filename', (req, res) => {
   res.download(filePath);
 });
 
-// API endpoint to get available languages
+// API Endpoint: Get Available Languages
 app.get('/api/languages', (req, res) => {
-  // gTTS supported languages (as of 2024)
   const languages = {
-    'af': 'Afrikaans',
-    'sq': 'Albanian',
-    'ar': 'Arabic',
-    'hy': 'Armenian',
-    'ca': 'Catalan',
-    'zh': 'Chinese',
-    'zh-cn': 'Chinese (Mandarin/China)',
-    'zh-tw': 'Chinese (Mandarin/Taiwan)',
-    'hr': 'Croatian',
-    'cs': 'Czech',
-    'da': 'Danish',
-    'nl': 'Dutch',
-    'en': 'English',
-    'en-au': 'English (Australia)',
-    'en-uk': 'English (United Kingdom)',
-    'en-us': 'English (United States)',
-    'eo': 'Esperanto',
-    'fi': 'Finnish',
-    'fr': 'French',
-    'de': 'German',
-    'el': 'Greek',
-    'ht': 'Haitian Creole',
-    'hi': 'Hindi',
-    'hu': 'Hungarian',
-    'is': 'Icelandic',
-    'id': 'Indonesian',
-    'it': 'Italian',
-    'ja': 'Japanese',
-    'ko': 'Korean',
-    'la': 'Latin',
-    'lv': 'Latvian',
-    'mk': 'Macedonian',
-    'no': 'Norwegian',
-    'pl': 'Polish',
-    'pt': 'Portuguese',
-    'pt-br': 'Portuguese (Brazil)',
-    'ro': 'Romanian',
-    'ru': 'Russian',
-    'sr': 'Serbian',
-    'sk': 'Slovak',
-    'es': 'Spanish',
-    'es-es': 'Spanish (Spain)',
-    'es-us': 'Spanish (United States)',
-    'sw': 'Swahili',
-    'sv': 'Swedish',
-    'ta': 'Tamil',
-    'th': 'Thai',
-    'tr': 'Turkish',
-    'vi': 'Vietnamese',
-    'cy': 'Welsh'
+    'af': 'Afrikaans', 'sq': 'Albanian', 'ar': 'Arabic', 'hy': 'Armenian',
+    'ca': 'Catalan', 'zh': 'Chinese', 'zh-cn': 'Chinese (Mandarin/China)',
+    'zh-tw': 'Chinese (Mandarin/Taiwan)', 'hr': 'Croatian', 'cs': 'Czech',
+    'da': 'Danish', 'nl': 'Dutch', 'en': 'English', 'en-au': 'English (Australia)',
+    'en-uk': 'English (United Kingdom)', 'en-us': 'English (United States)',
+    'eo': 'Esperanto', 'fi': 'Finnish', 'fr': 'French', 'de': 'German',
+    'el': 'Greek', 'ht': 'Haitian Creole', 'hi': 'Hindi', 'hu': 'Hungarian',
+    'is': 'Icelandic', 'id': 'Indonesian', 'it': 'Italian', 'ja': 'Japanese',
+    'ko': 'Korean', 'la': 'Latin', 'lv': 'Latvian', 'mk': 'Macedonian',
+    'no': 'Norwegian', 'pl': 'Polish', 'pt': 'Portuguese', 'pt-br': 'Portuguese (Brazil)',
+    'ro': 'Romanian', 'ru': 'Russian', 'sr': 'Serbian', 'sk': 'Slovak',
+    'es': 'Spanish', 'es-es': 'Spanish (Spain)', 'es-us': 'Spanish (United States)',
+    'sw': 'Swahili', 'sv': 'Swedish', 'ta': 'Tamil', 'th': 'Thai', 'tr': 'Turkish',
+    'vi': 'Vietnamese', 'cy': 'Welsh'
   };
   
   res.json(languages);
 });
 
-// Optional: Add cleanup for old files
+// Cleanup Old Files (Deletes files older than 1 hour)
 const cleanupOldFiles = () => {
   fs.readdir(uploadsDir, (err, files) => {
     if (err) return;
@@ -130,8 +91,7 @@ const cleanupOldFiles = () => {
       fs.stat(filePath, (err, stats) => {
         if (err) return;
         
-        // Delete files older than 1 hour
-        if (now - stats.mtime.getTime() > 3600000) {
+        if (now - stats.mtime.getTime() > 3600000) { // 1 hour
           fs.unlink(filePath, () => {});
         }
       });
@@ -142,9 +102,10 @@ const cleanupOldFiles = () => {
 // Run cleanup every hour
 setInterval(cleanupOldFiles, 3600000);
 
-// Serve static files from the public directory (if you have a frontend)
+// Serve static files from the 'public' directory (optional frontend)
 app.use(express.static('public'));
 
+// Start Server
 app.listen(port, () => {
   console.log(`Text-to-Speech API running on http://localhost:${port}`);
 });
